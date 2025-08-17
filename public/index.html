@@ -359,13 +359,6 @@ let activeDuty = 45/60;                // Selected (preset/slider/RR)
 let lastOptimizedDuty = null;          // Optimized (5' step)
 let yAxisManual = false, yAxisMin = 0, yAxisMax = 6;
 
-/* --- RR --- */
-const rrTimesMin = [5,15,30,60,120,180,240,300,360,480,600];
-const rrMags = [1,1.5,2,2.5,3,3.5,4,4.5,5,5.5,6,7,8,9,10,11,12,13,14,15,16,18,19,20,25,30,40];
-const formatTimeLabel = (m)=> m<60?`${m}m`:(m%60===0?`${m/60}h`:`${(m/60).toFixed(1)}h`);
-const rrPoints = (a, m)=> 2 * a * a * (m/60);
-const classifyPts = (p)=> p>=400?'pv-bad' : (p>=100?'pv-warn':'pv-ok');
-
 /* --- utils --- */
 function pillText(a8){ const P=T[lang].pills; if(!isFinite(a8))return{text:"—",cls:"pill"}; if(a8<2.5)return{text:P.below,cls:"pill ok"}; if(Math.abs(a8-2.5)<1e-9)return{text:P.at,cls:"pill warn"}; if(a8>5.0)return{text:P.above,cls:"pill bad"}; return{text:P.between,cls:"pill warn"}}
 function fmt(x,d=2){if(!isFinite(x))return"—";return Number(x).toFixed(d)}
@@ -531,114 +524,107 @@ function updateContextualHighlights(a8){
   if(a8>5.0){cards.eng.classList.add('highlight-bad');cards.rot.classList.add('highlight-bad')}
   else if(a8>=2.5){cards.admin.classList.add('highlight-warn');cards.tech.classList.add('highlight-warn')}
 }
+// Gantikan fungsi buildRR dan recalc Anda dengan versi di bawah ini
+
+/* --- Ready-Reckoner build & hooks --- */
+async function buildRR() {
+  const head = document.getElementById('rrHead'),
+        body = document.getElementById('rrBody');
+  if (!head || !body) return;
+
+  try {
+    const response = await fetch('/api/get-reckoner-data');
+    if (!response.ok) throw new Error('Failed to load reckoner data');
+    const data = await response.json();
+
+    // Bangun header tabel dari data server
+    head.innerHTML = `<th style="min-width:72px">${T[lang].rr.mag}</th>` + 
+                     data.headers.map(h => `<th data-min="${h.min}">${h.label}</th>`).join('');
+
+    // Bangun body tabel dari data server
+    body.innerHTML = data.rows.map(row => `
+      <tr>
+        <td class="small"><b>${row.magnitude}</b></td>
+        ${row.cells.map(cell => `
+          <td data-a="${cell.a}" data-min="${cell.min}" class="${cell.class}" title="${cell.points} pts">
+            ${cell.points}
+          </td>
+        `).join('')}
+      </tr>
+    `).join('');
+
+    // Pasang event listener untuk klik pada sel tabel (ini tidak berubah)
+    body.addEventListener('click', e => {
+        const td = e.target.closest('td[data-a][data-min]');
+        if (!td) return;
+        const a = parseFloat(td.getAttribute('data-a'));
+        const m = parseFloat(td.getAttribute('data-min'));
+        const shiftH = parseFloat(document.getElementById('shiftH').value) || 8;
+        document.getElementById('ahv').value = a;
+        const duty = Math.max(0, Math.min(1, (m / 60) / shiftH));
+        activeDuty = duty;
+        const w = Math.round(duty * 60);
+        chartWB.data.datasets[0].data = [w, 60 - w];
+        chartWB.updatedFromTable = true;
+        chartWB.update('none');
+        recalc();
+        document.querySelectorAll('#rrBody td.sel').forEach(el => el.classList.remove('sel'));
+        td.classList.add('sel');
+    });
+
+  } catch (error) {
+    console.error("Error building Ready-Reckoner:", error);
+    body.innerHTML = `<tr><td>Failed to load table data.</td></tr>`;
+  }
+}
 
 /* Recalc & AUTO plotting (Calculated, Optimized, Selected) */
 async function recalc() {
   console.log("Tombol Calculate berhasil diklik!");
-
-  // 1. Kumpulkan data input dari form
   const inputs = {
-    ahv: parseFloat(document.getElementById('ahv').value),
-    targetA: parseFloat(document.getElementById('targetA').value) || 2.5,
-    shiftH: parseFloat(document.getElementById('shiftH').value),
-    toolHours: parseFloat(document.getElementById('toolHours').value)
+      ahv: parseFloat(document.getElementById('ahv').value),
+      targetA: parseFloat(document.getElementById('targetA').value) || 2.5,
+      shiftH: parseFloat(document.getElementById('shiftH').value),
+      toolHours: parseFloat(document.getElementById('toolHours').value)
   };
 
   try {
-    // 2. Kirim data input ke server API kita
-    const response = await fetch('/api/calculate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(inputs)
-    });
+      const response = await fetch('/api/calculate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(inputs)
+      });
+      if (!response.ok) throw new Error(`Server error: ${response.statusText}`);
+      const results = await response.json();
 
-    if (!response.ok) {
-      throw new Error(`Server error: ${response.statusText}`);
-    }
+      // Update semua stat di UI
+      document.getElementById('a8full').textContent = results.a8full;
+      document.getElementById('tmax8').textContent = results.Tmax8;
+      document.getElementById('tmaxLimited').textContent = results.TmaxLimited;
+      document.getElementById('perHour').textContent = results.perHourText;
+      document.getElementById('opsNeeded').textContent = results.opsNeeded;
+      document.getElementById('pointsNow').textContent = results.pointsNow;
+      
+      const a8fullValue = parseFloat(results.a8full);
+      const pill = pillText(a8fullValue);
+      const pillEl = document.getElementById('statusPill');
+      pillEl.textContent = pill.text;
+      pillEl.className = pill.cls;
 
-    // 3. Terima HANYA HASILNYA dari server
-    const results = await response.json();
-
-    // 4. Tampilkan hasil ke pengguna (update DOM stats)
-    document.getElementById('a8full').textContent = results.a8full;
-    document.getElementById('tmax8').textContent = results.Tmax8;
-    document.getElementById('tmaxLimited').textContent = results.TmaxLimited;
-    document.getElementById('perHour').textContent = results.perHourText;
-    document.getElementById('opsNeeded').textContent = results.opsNeeded;
-    document.getElementById('pointsNow').textContent = results.pointsNow;
-    
-    const a8fullValue = parseFloat(results.a8full);
-    const pill = pillText(a8fullValue);
-    const pillEl = document.getElementById('statusPill');
-    pillEl.textContent = pill.text;
-    pillEl.className = pill.cls;
-
-    // --- BAGIAN PENTING YANG DITAMBAHKAN ---
-    // 5. Perbarui UI lain seperti tabel, chart, dan highlight
-    
-    // Perbarui tabel jadwal (schedule table)
-    const tbody = document.querySelector('#schedTable tbody');
-    tbody.innerHTML = ""; // Kosongkan tabel
-    const allPresets = [...defaultPresets, ...customPresets];
-    allPresets.forEach((p, idx) => {
-        const dutyRow = p.work / 60;
-        const T = dutyRow * inputs.shiftH;
-        const A8 = inputs.ahv * Math.sqrt(T / 8); // Perhitungan A8 untuk tabel tetap di frontend
-        const st = pillText(A8);
-        const label = (lang === 'id' ? (p.labelID || `${p.work}′+${p.break}′`) : (p.labelEN || `${p.work}′+${p.break}′`));
-        const tr = document.createElement('tr');
-        tr.dataset.work = p.work;
-        tr.dataset.break = p.break;
-        if (activeDuty !== null && Math.abs(activeDuty - dutyRow) < 1e-9) tr.classList.add('active');
-        tr.innerHTML = `<td>${label}</td><td>${Math.round(dutyRow*100)}%</td><td>${fmt(T,2)}</td><td>${fmt(A8,2)}</td><td><span class="${st.cls}">${st.text}</span></td><td>${idx>=defaultPresets.length?`<button class="btn btn-del small" data-idx="${idx}" title="${lang==='id'?'Hapus':'Delete'}">🗑</button>`:''}</td>`;
-        tbody.appendChild(tr);
-    });
-
-    // Perbarui highlight kartu rekomendasi
-    updateContextualHighlights(a8fullValue);
-
-    // Perbarui chart (jika sudah dibuat)
-    if (chartA8) {
-      chartA8.update();
-    }
-    // --- AKHIR DARI BAGIAN YANG DITAMBAHKAN ---
+      // --- INI ADALAH LOGIKA UNTUK PERMINTAAN KEDUA ANDA ---
+      // Highlight sel yang sesuai di tabel Ready-Reckoner
+      if (results.Tcur !== undefined) {
+          highlightRR(inputs.ahv, results.Tcur);
+      }
+      
+      updateContextualHighlights(a8fullValue);
+      if (chartA8) chartA8.update();
 
   } catch (error) {
-    console.error('Failed to fetch calculation:', error);
-    alert('Gagal mengambil data perhitungan dari server.');
+      console.error('Failed to fetch calculation:', error);
+      alert('Gagal mengambil data perhitungan dari server.');
   }
-
-  // Fungsi persistensi state bisa tetap dipanggil
   saveState();
-}
-
-function buildRR(relabelOnly=false){
-  const head=document.getElementById('rrHead'), body=document.getElementById('rrBody');
-  if(!relabelOnly){ head.innerHTML=''; body.innerHTML=''; }
-  head.innerHTML = `<th style="min-width:72px">${T[lang].rr.mag}</th>` + rrTimesMin.map(m=>`<th data-min="${m}">${formatTimeLabel(m)}</th>`).join('');
-  if(relabelOnly) return;
-  rrMags.forEach(a=>{
-    const tr=document.createElement('tr');
-    tr.innerHTML = `<td class="small"><b>${a}</b></td>` + rrTimesMin.map(m=>{
-      const pts = Math.round(rrPoints(a,m));
-      const cls = classifyPts(pts);
-      return `<td data-a="${a}" data-min="${m}" class="${cls}" title="${pts} pts">${pts}</td>`;
-    }).join('');
-    body.appendChild(tr);
-  });
-  body.addEventListener('click', e=>{
-    const td = e.target.closest('td[data-a][data-min]'); if(!td) return;
-    const a = parseFloat(td.getAttribute('data-a'));
-    const m = parseFloat(td.getAttribute('data-min'));
-    const shiftH = parseFloat(document.getElementById('shiftH').value)||8;
-    document.getElementById('ahv').value = a;
-    const duty = Math.max(0, Math.min(1, (m/60)/shiftH));
-    activeDuty = duty;
-    const w = Math.round(duty*60); chartWB.data.datasets[0].data=[w,60-w]; chartWB.updatedFromTable=true; chartWB.update('none');
-    recalc();
-    document.querySelectorAll('#rrBody td.sel').forEach(el=>el.classList.remove('sel'));
-    td.classList.add('sel');
-  });
 }
 function highlightRR(a_now, T_now_h){
   const aIdx = rrMags.reduce((bi,_i,idx)=> (Math.abs(rrMags[idx]-a_now)<Math.abs(rrMags[bi]-a_now)?idx:bi),0);

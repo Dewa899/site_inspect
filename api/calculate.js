@@ -35,7 +35,8 @@ export default function handler(request, response) {
       TmaxLimited: TmaxLimited.toFixed(2),
       perHourText: `${workMin}′ + ${breakMin}′`,
       opsNeeded: opsNeeded,
-      pointsNow: Math.round(points)
+      pointsNow: Math.round(points),
+      Tcur: Tcur 
       // Tambahkan hasil lain yang Anda butuhkan di frontend
     });
 
