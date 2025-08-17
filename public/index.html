@@ -716,8 +716,18 @@ document.addEventListener('DOMContentLoaded',()=>{
   ['yMin','yMax'].forEach(id=>{
     document.getElementById(id).addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); applyYAxis(); } });
   });
+
+  const syncQuick = () => { 
+    const w = +quick.value; 
+    const quickBadge = document.getElementById('quickBadge');
+    if (quickBadge) {
+      quickBadge.textContent = (lang==='id'?`${w}′ kerja + ${60-w}′ jeda`:`${w}′ work + ${60-w}′ break`);
+    }
+  };
+
   const quick = document.getElementById('quickWork');
   quick.addEventListener('input', syncQuick);
+  
   document.getElementById('btnUseQuick').addEventListener('click',()=>{
     const w=+quick.value, b=60-w; activeDuty = w/60;
     chartWB.data.datasets[0].data=[w,b]; chartWB.updatedFromTable=true; chartWB.update('none');
