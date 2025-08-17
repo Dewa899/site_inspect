@@ -534,7 +534,7 @@ function updateContextualHighlights(a8){
 
 /* Recalc & AUTO plotting (Calculated, Optimized, Selected) */
 async function recalc() {
-  console.log("Tombol Calculate berhasil diklik!"); // <-- TAMBAHKAN INI
+  console.log("Tombol Calculate berhasil diklik!");
 
   // 1. Kumpulkan data input dari form
   const inputs = {
@@ -545,7 +545,7 @@ async function recalc() {
   };
 
   try {
-    // 2. Kirim data input ke server API kita di Vercel
+    // 2. Kirim data input ke server API kita
     const response = await fetch('/api/calculate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -559,35 +559,59 @@ async function recalc() {
     // 3. Terima HANYA HASILNYA dari server
     const results = await response.json();
 
-    // 4. Tampilkan hasil ke pengguna (update DOM)
-    // Logika perhitungan sudah tidak ada di sini lagi!
+    // 4. Tampilkan hasil ke pengguna (update DOM stats)
     document.getElementById('a8full').textContent = results.a8full;
     document.getElementById('tmax8').textContent = results.Tmax8;
     document.getElementById('tmaxLimited').textContent = results.TmaxLimited;
     document.getElementById('perHour').textContent = results.perHourText;
     document.getElementById('opsNeeded').textContent = results.opsNeeded;
     document.getElementById('pointsNow').textContent = results.pointsNow;
-
-    // Bagian yang MENGGAMBAR CHART dan interaksi UI bisa tetap ada di sini
-    // karena tidak membocorkan rumus inti. Contoh:
+    
     const a8fullValue = parseFloat(results.a8full);
-    const pill = pillText(a8fullValue); // pillText() adalah fungsi UI, aman ditaruh di frontend
+    const pill = pillText(a8fullValue);
     const pillEl = document.getElementById('statusPill');
     pillEl.textContent = pill.text;
     pillEl.className = pill.cls;
 
-    // Panggil fungsi UI lainnya yang bergantung pada hasil kalkulasi
-    // ... (misalnya update chart, highlight, dll)
+    // --- BAGIAN PENTING YANG DITAMBAHKAN ---
+    // 5. Perbarui UI lain seperti tabel, chart, dan highlight
+    
+    // Perbarui tabel jadwal (schedule table)
+    const tbody = document.querySelector('#schedTable tbody');
+    tbody.innerHTML = ""; // Kosongkan tabel
+    const allPresets = [...defaultPresets, ...customPresets];
+    allPresets.forEach((p, idx) => {
+        const dutyRow = p.work / 60;
+        const T = dutyRow * inputs.shiftH;
+        const A8 = inputs.ahv * Math.sqrt(T / 8); // Perhitungan A8 untuk tabel tetap di frontend
+        const st = pillText(A8);
+        const label = (lang === 'id' ? (p.labelID || `${p.work}′+${p.break}′`) : (p.labelEN || `${p.work}′+${p.break}′`));
+        const tr = document.createElement('tr');
+        tr.dataset.work = p.work;
+        tr.dataset.break = p.break;
+        if (activeDuty !== null && Math.abs(activeDuty - dutyRow) < 1e-9) tr.classList.add('active');
+        tr.innerHTML = `<td>${label}</td><td>${Math.round(dutyRow*100)}%</td><td>${fmt(T,2)}</td><td>${fmt(A8,2)}</td><td><span class="${st.cls}">${st.text}</span></td><td>${idx>=defaultPresets.length?`<button class="btn btn-del small" data-idx="${idx}" title="${lang==='id'?'Hapus':'Delete'}">🗑</button>`:''}</td>`;
+        tbody.appendChild(tr);
+    });
+
+    // Perbarui highlight kartu rekomendasi
+    updateContextualHighlights(a8fullValue);
+
+    // Perbarui chart (jika sudah dibuat)
+    if (chartA8) {
+      chartA8.update();
+    }
+    // --- AKHIR DARI BAGIAN YANG DITAMBAHKAN ---
 
   } catch (error) {
     console.error('Failed to fetch calculation:', error);
     alert('Gagal mengambil data perhitungan dari server.');
   }
 
-  // Fungsi yang tidak berhubungan langsung dengan rumus inti bisa tetap dipanggil
+  // Fungsi persistensi state bisa tetap dipanggil
   saveState();
 }
-/* --- Ready-Reckoner build & hooks --- */
+
 function buildRR(relabelOnly=false){
   const head=document.getElementById('rrHead'), body=document.getElementById('rrBody');
   if(!relabelOnly){ head.innerHTML=''; body.innerHTML=''; }
@@ -727,7 +751,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 
   const quick = document.getElementById('quickWork');
   quick.addEventListener('input', syncQuick);
-  
+
   document.getElementById('btnUseQuick').addEventListener('click',()=>{
     const w=+quick.value, b=60-w; activeDuty = w/60;
     chartWB.data.datasets[0].data=[w,b]; chartWB.updatedFromTable=true; chartWB.update('none');
