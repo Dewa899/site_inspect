@@ -534,6 +534,8 @@ function updateContextualHighlights(a8){
 
 /* Recalc & AUTO plotting (Calculated, Optimized, Selected) */
 async function recalc() {
+  console.log("Tombol Calculate berhasil diklik!"); // <-- TAMBAHKAN INI
+
   // 1. Kumpulkan data input dari form
   const inputs = {
     ahv: parseFloat(document.getElementById('ahv').value),
@@ -683,7 +685,7 @@ document.querySelector('#schedTable tbody').addEventListener('click',e=>{
   }
 });
 document.getElementById('btnPrint').addEventListener('click',()=>window.print());
-document.getElementById('btnCalc').addEventListener('click',recalc);
+document.getElementById('btnCalc').addEventListener('click', recalc);
 document.getElementById('btnAddPreset').addEventListener('click',()=>{
   const w=prompt(lang==='id'?'Menit kerja per jam (0–60)':'Work minutes per hour (0–60)','45'),
         b=prompt(lang==='id'?'Menit jeda per jam (0–60)':'Break minutes per hour (0–60)','15');
