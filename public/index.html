@@ -661,82 +661,82 @@ function loadFromQuery(){
   };
   applyState(s);
 }
-
+// file: a8-simulator.html
 /* --- events --- */
 document.addEventListener('click',e=>{
-  if(e.target.classList.contains('btn-del')){
-    const idx=parseInt(e.target.getAttribute('data-idx'),10), customIdx=idx-defaultPresets.length;
-    if(customIdx>=0&&customIdx<customPresets.length){
-      customPresets.splice(customIdx,1);
-      if(customPresets.length===0) activeDuty=null;
-      recalc()
-    }
-  }
+  // Event listener untuk tombol hapus di tabel bisa tetap di sini karena lebih umum
+  if(e.target.classList.contains('btn-del')){
+    const idx=parseInt(e.target.getAttribute('data-idx'),10), customIdx=idx-defaultPresets.length;
+    if(customIdx>=0&&customIdx<customPresets.length){
+      customPresets.splice(customIdx,1);
+      if(customPresets.length===0) activeDuty=null;
+      recalc()
+    }
+  }
 });
 document.querySelector('#schedTable tbody').addEventListener('click',e=>{
+  // Event listener untuk baris tabel juga bisa tetap di sini
   const row=e.target.closest('tr'); if(!row) return;
-  const work=parseFloat(row.dataset.work),breakVal=parseFloat(row.dataset.break);
-  if(!isNaN(work)&&!isNaN(breakVal)){
-    chartWB.data.datasets[0].data=[work,breakVal]; chartWB.updatedFromTable=true; chartWB.update('none');
-    activeDuty = work/60;
-    document.querySelectorAll('#schedTable tbody tr').forEach(tr=>tr.classList.remove('active'));
-    row.classList.add('active');
-    recalc();
-  }
+  const work=parseFloat(row.dataset.work),breakVal=parseFloat(row.dataset.break);
+  if(!isNaN(work)&&!isNaN(breakVal)){
+    chartWB.data.datasets[0].data=[work,breakVal]; chartWB.updatedFromTable=true; chartWB.update('none');
+    activeDuty = work/60;
+    document.querySelectorAll('#schedTable tbody tr').forEach(tr=>tr.classList.remove('active'));
+    row.classList.add('active');
+    recalc();
+  }
 });
-document.getElementById('btnPrint').addEventListener('click',()=>window.print());
-document.getElementById('btnCalc').addEventListener('click', recalc);
-document.getElementById('btnAddPreset').addEventListener('click',()=>{
-  const w=prompt(lang==='id'?'Menit kerja per jam (0–60)':'Work minutes per hour (0–60)','45'),
-        b=prompt(lang==='id'?'Menit jeda per jam (0–60)':'Break minutes per hour (0–60)','15');
-  if(w===null||b===null)return;
-  const wi=Math.max(0,Math.min(60,parseFloat(w)||0)), bi=Math.max(0,Math.min(60,parseFloat(b)||0));
-  if(wi+bi===0){alert(lang==='id'?'Tidak valid':'Invalid');return}
-  customPresets.push({work:wi,break:bi}); activeDuty = wi/60; recalc();
-});
-document.getElementById('btnOptimize').addEventListener('click', ()=>{
-  // hanya memicu recalculation; lastOptimizedDuty dihitung di recalc
-  recalc();
-});
-document.getElementById('btnResetSel').addEventListener('click',()=>{activeDuty=null; recalc()});
-document.getElementById('btnTheme').addEventListener('click',()=>{ setTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'); });
-document.getElementById('btnCopy').addEventListener('click',async()=>{
-  const url = stateToQuery();
-  try{ await navigator.clipboard.writeText(url); alert(lang==='id'?'Tautan disalin.':'Link copied.'); }
-  catch{ prompt(lang==='id'?'Salin tautan berikut:':'Copy this link:', url) }
-});
-document.getElementById('btnEN').addEventListener('click',()=>setLang('en'));
-document.getElementById('btnID').addEventListener('click',()=>setLang('id'));
-document.getElementById('yManual').addEventListener('change',applyYAxis);
-document.getElementById('btnApplyY').addEventListener('click',applyYAxis);
-['yMin','yMax'].forEach(id=>{
-  document.getElementById(id).addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); applyYAxis(); } });
-});
-const quick = document.getElementById('quickWork');
-const quickBadge = document.getElementById('quickBadge');
-const syncQuick = () => { const w=+quick.value; quickBadge.textContent = (lang==='id'?`${w}′ kerja + ${60-w}′ jeda`:`${w}′ work + ${60-w}′ break`); };
-quick.addEventListener('input', syncQuick);
-document.getElementById('btnUseQuick').addEventListener('click',()=>{
-  const w=+quick.value, b=60-w; activeDuty = w/60;
-  chartWB.data.datasets[0].data=[w,b]; chartWB.updatedFromTable=true; chartWB.update('none');
-  recalc();
-});
+
 
 /* --- init --- */
 document.addEventListener('DOMContentLoaded',()=>{
-  buildCharts();
-  buildRR(false);
-  loadFromQuery();
-  const local = loadState();
-  if(local && !location.search) applyState(local);
-  setTheme(document.documentElement.getAttribute('data-theme') || 'light');
-  setLang(lang || 'en');
-  const w=+document.getElementById('quickWork').value, b=60-w;
-  activeDuty = w/60;
-  chartWB.data.datasets[0].data=[w,b]; chartWB.update('none');
-  document.getElementById('btnEN').classList.add('active'); document.getElementById('btnEN').setAttribute('aria-pressed','true');
-  syncQuick();
-  recalc();
+  // --- PINDAHKAN SEMUA EVENT LISTENER TOMBOL UTAMA KE SINI ---
+  document.getElementById('btnPrint').addEventListener('click',()=>window.print());
+  document.getElementById('btnCalc').addEventListener('click', recalc);
+  document.getElementById('btnAddPreset').addEventListener('click',()=>{
+    const w=prompt(lang==='id'?'Menit kerja per jam (0–60)':'Work minutes per hour (0–60)','45'),
+          b=prompt(lang==='id'?'Menit jeda per jam (0–60)':'Break minutes per hour (0–60)','15');
+    if(w===null||b===null)return;
+    const wi=Math.max(0,Math.min(60,parseFloat(w)||0)), bi=Math.max(0,Math.min(60,parseFloat(b)||0));
+    if(wi+bi===0){alert(lang==='id'?'Tidak valid':'Invalid');return}
+    customPresets.push({work:wi,break:bi}); activeDuty = wi/60; recalc();
+  });
+  document.getElementById('btnOptimize').addEventListener('click', recalc);
+  document.getElementById('btnResetSel').addEventListener('click',()=>{activeDuty=null; recalc()});
+  document.getElementById('btnTheme').addEventListener('click',()=>{ setTheme(document.documentElement.getAttribute('data-theme')==='dark'?'light':'dark'); });
+  document.getElementById('btnCopy').addEventListener('click',async()=>{
+    const url = stateToQuery();
+    try{ await navigator.clipboard.writeText(url); alert(lang==='id'?'Tautan disalin.':'Link copied.'); }
+    catch{ prompt(lang==='id'?'Salin tautan berikut:':'Copy this link:', url) }
+  });
+  document.getElementById('btnEN').addEventListener('click',()=>setLang('en'));
+  document.getElementById('btnID').addEventListener('click',()=>setLang('id'));
+  document.getElementById('yManual').addEventListener('change',applyYAxis);
+  document.getElementById('btnApplyY').addEventListener('click',applyYAxis);
+  ['yMin','yMax'].forEach(id=>{
+    document.getElementById(id).addEventListener('keydown',e=>{ if(e.key==='Enter'){ e.preventDefault(); applyYAxis(); } });
+  });
+  quick.addEventListener('input', syncQuick);
+  document.getElementById('btnUseQuick').addEventListener('click',()=>{
+    const w=+quick.value, b=60-w; activeDuty = w/60;
+    chartWB.data.datasets[0].data=[w,b]; chartWB.updatedFromTable=true; chartWB.update('none');
+    recalc();
+  });
+  // --- AKHIR DARI BLOK YANG DIPINDAHKAN ---
+
+  buildCharts();
+  buildRR(false);
+  loadFromQuery();
+  const local = loadState();
+  if(local && !location.search) applyState(local);
+  setTheme(document.documentElement.getAttribute('data-theme') || 'light');
+  setLang(lang || 'en');
+  const w=+document.getElementById('quickWork').value, b=60-w;
+  activeDuty = w/60;
+  chartWB.data.datasets[0].data=[w,b]; chartWB.update('none');
+  document.getElementById('btnEN').classList.add('active'); document.getElementById('btnEN').setAttribute('aria-pressed','true');
+  syncQuick();
+  recalc();
 });
 </script>
 </body>
